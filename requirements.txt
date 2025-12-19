@@ -1,5 +1,5 @@
 streamlit
-yt-dlp
+yt-dlp>=2025.12.18
 openai
 chromadb
 pyvis
