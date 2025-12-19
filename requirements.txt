@@ -1,5 +1,5 @@
 streamlit
-yt-dlp>=2025.12.01
+git+https://github.com/yt-dlp/yt-dlp.git@master
 openai
 chromadb
 pyvis
