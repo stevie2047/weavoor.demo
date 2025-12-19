@@ -1,0 +1,6 @@
+streamlit
+yt-dlp
+openai
+chromadb
+pyvis
+networkx
