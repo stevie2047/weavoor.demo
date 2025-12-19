@@ -4,3 +4,4 @@ openai
 chromadb
 pyvis
 networkx
+--upgrade yt-dlp
