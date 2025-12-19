@@ -1,7 +1,6 @@
 streamlit
-yt-dlp>=2025.12.18
+yt-dlp>=2025.12.01
 openai
 chromadb
 pyvis
 networkx
---upgrade yt-dlp
