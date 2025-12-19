@@ -1,5 +1,5 @@
 streamlit
-git+https://github.com/yt-dlp/yt-dlp.git@master
+git+https://github.com/yt-dlp/yt-dlp.git@master#egg=yt-dlp
 openai
 chromadb
 pyvis
