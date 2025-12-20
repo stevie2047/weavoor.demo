@@ -1,5 +1,6 @@
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
 import chromadb
 from chromadb.utils import embedding_functions
 import networkx as nx
@@ -12,29 +13,24 @@ st.caption("Summaries decay. Connections compound.")
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-def get_transcript(video_id):
-    try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # Prefer manual English, fallback to auto-generated
-        try:
-            transcript = transcript_list.find_transcript(['en'])
-        except NoTranscriptFound:
-            transcript = transcript_list.find_generated_transcript(['en'])
-        return transcript.fetch()
-    except Exception as e:
-        raise ValueError(f"No transcript available: {str(e)}")
-
 url = st.text_input("Paste any YouTube/podcast URL:")
 if st.button("Weave", type="primary"):
     if not url:
         st.error("Please paste a URL!")
     else:
         try:
-            video_id = url.split("v=")[-1].split("&")[0] if "v=" in url else url.split("/")[-1]
-            
+            # Extract video ID
+            if "v=" in url:
+                video_id = url.split("v=")[-1].split("&")[0]
+            elif "youtu.be/" in url:
+                video_id = url.split("youtu.be/")[-1].split("?")[0]
+            else:
+                video_id = url.split("/")[-1]
+
             with st.spinner("Fetching transcript..."):
-                transcript_data = get_transcript(video_id)
-                text = " ".join([entry['text'] for entry in transcript_data])
+                # Direct get_transcript — faster and works for most English-captioned videos
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+                text = " ".join([entry['text'] for entry in transcript_list])
 
             with st.spinner("Summarizing..."):
                 response = openai.ChatCompletion.create(
@@ -75,7 +71,11 @@ if st.button("Weave", type="primary"):
             markdown = f"# {url}\n\n{summary}\n\n![[graph.html]]"
             st.download_button("Download Obsidian note", data=markdown, file_name=f"{video_id}.md")
 
-        except ValueError as e:
-            st.error(str(e))
-            st.info("Tip: Try a video with captions enabled (most podcasts have them!). For no-captions videos, full audio transcription coming in v2.")
+        except NoTranscriptFound:
+            st.error("No English transcript found for this video.")
+            st.info("Try a different video with captions enabled (most popular podcasts do!). Full audio transcription coming soon.")
+        except TranscriptsDisabled:
+            st.error("Transcripts are disabled for this video.")
+        except Exception as e:
+            st.error(f"Unexpected error: {str(e)}")
 
