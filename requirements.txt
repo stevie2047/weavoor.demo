@@ -1,5 +1,5 @@
 streamlit
-assemblyai
+youtube-transcript-api
 openai
 chromadb
 pyvis
