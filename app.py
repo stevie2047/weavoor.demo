@@ -12,6 +12,9 @@ st.caption("Summaries decay. Connections compound.")
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
+# Create the API instance
+ytt_api = YouTubeTranscriptApi()
+
 url = st.text_input("Paste any YouTube/podcast URL:")
 if st.button("Weave", type="primary"):
     if not url:
@@ -27,13 +30,11 @@ if st.button("Weave", type="primary"):
                 video_id = url.split("/")[-1]
 
             with st.spinner("Fetching transcript..."):
-                # New way: list transcripts and find English (manual or generated)
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                # New way: instance.list(video_id)
+                transcript_list = ytt_api.list(video_id)
                 try:
-                    # Prefer manual English
                     transcript = transcript_list.find_transcript(['en'])
                 except NoTranscriptFound:
-                    # Fallback to generated
                     transcript = transcript_list.find_generated_transcript(['en'])
                 transcript_data = transcript.fetch()
                 text = " ".join([entry['text'] for entry in transcript_data])
@@ -47,7 +48,7 @@ if st.button("Weave", type="primary"):
                 st.markdown("**Summary**")
                 st.write(summary)
 
-            # Graph logic (unchanged)
+            # Graph logic
             embedding_fn = embedding_functions.OpenAIEmbeddingFunction(api_key=st.secrets["OPENAI_API_KEY"])
             client = chromadb.PersistentClient(path="db")
             collection = client.get_or_create_collection("weaves", embedding_function=embedding_fn)
@@ -84,5 +85,5 @@ if st.button("Weave", type="primary"):
             st.error("Transcripts are disabled for this video.")
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
-            st.info("This library works best with videos that have captions enabled.")
+            st.info("Make sure the video has captions enabled.")
 
