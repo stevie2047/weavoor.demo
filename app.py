@@ -1,6 +1,5 @@
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 import chromadb
 from chromadb.utils import embedding_functions
 import networkx as nx
@@ -28,9 +27,16 @@ if st.button("Weave", type="primary"):
                 video_id = url.split("/")[-1]
 
             with st.spinner("Fetching transcript..."):
-                # Direct get_transcript — faster and works for most English-captioned videos
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
-                text = " ".join([entry['text'] for entry in transcript_list])
+                # New way: list transcripts and find English (manual or generated)
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                try:
+                    # Prefer manual English
+                    transcript = transcript_list.find_transcript(['en'])
+                except NoTranscriptFound:
+                    # Fallback to generated
+                    transcript = transcript_list.find_generated_transcript(['en'])
+                transcript_data = transcript.fetch()
+                text = " ".join([entry['text'] for entry in transcript_data])
 
             with st.spinner("Summarizing..."):
                 response = openai.ChatCompletion.create(
@@ -41,7 +47,7 @@ if st.button("Weave", type="primary"):
                 st.markdown("**Summary**")
                 st.write(summary)
 
-            # Graph logic
+            # Graph logic (unchanged)
             embedding_fn = embedding_functions.OpenAIEmbeddingFunction(api_key=st.secrets["OPENAI_API_KEY"])
             client = chromadb.PersistentClient(path="db")
             collection = client.get_or_create_collection("weaves", embedding_function=embedding_fn)
@@ -72,10 +78,11 @@ if st.button("Weave", type="primary"):
             st.download_button("Download Obsidian note", data=markdown, file_name=f"{video_id}.md")
 
         except NoTranscriptFound:
-            st.error("No English transcript found for this video.")
-            st.info("Try a different video with captions enabled (most popular podcasts do!). Full audio transcription coming soon.")
+            st.error("No English transcript found (manual or generated).")
+            st.info("Try a popular podcast video — most have auto-captions!")
         except TranscriptsDisabled:
             st.error("Transcripts are disabled for this video.")
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
+            st.info("This library works best with videos that have captions enabled.")
 
