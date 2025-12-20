@@ -1,49 +1,44 @@
 import streamlit as st
-import yt_dlp
-import openai
+import assemblyai as aai
 import os
 import chromadb
 from chromadb.utils import embedding_functions
 import networkx as nx
 from pyvis.network import Network
-import tempfile
-import shutil
+import openai  # for embeddings + summary
 
 st.set_page_config(page_title="Weavoor", page_icon="🧵👀")
 st.title("Weavoor 🧵👀")
 st.caption("Summaries decay. Connections compound.")
+
+aai.settings.api_key = st.secrets["ASSEMBLYAI_KEY"]
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # keep for embeddings/summary
 
 url = st.text_input("Paste any YouTube/podcast URL:")
 if st.button("Weave", type="primary"):
     if not url:
         st.error("Please paste a URL!")
     else:
-        with st.spinner("Downloading audio..."):
-            temp_dir = tempfile.mkdtemp()
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
-                'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'wav'}],
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            audio_path = os.path.join(temp_dir, "audio.wav")
-
-        with st.spinner("Transcribing with Whisper (cloud)..."):
-            with open(audio_path, "rb") as f:
-                transcript = openai.Audio.transcribe("whisper-1", f)
-            text = transcript.text
+        with st.spinner("Transcribing directly with AssemblyAI..."):
+            config = aai.TranscriptionConfig(language_code="en")
+            transcriber = aai.Transcriber()
+            transcript = transcriber.transcribe(url, config)  # direct URL magic!
+            
+            if transcript.status == aai.TranscriptStatus.error:
+                st.error(f"Transcription failed: {transcript.error}")
+            else:
+                text = transcript.text
 
         with st.spinner("Summarizing..."):
             response = openai.ChatCompletion.create(
-                model="gpt-4o-mini",  # cheap & fast — change to claude if you prefer
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": f"Summarize in 5 short bullets:\n\n{text[:15000]}"}]
             )
             summary = response.choices[0].message.content
             st.markdown("**Summary**")
             st.write(summary)
 
-        # Graph logic
+        # Graph logic (same)
         embedding_fn = embedding_functions.OpenAIEmbeddingFunction(api_key=st.secrets["OPENAI_API_KEY"])
         client = chromadb.PersistentClient(path="db")
         collection = client.get_or_create_collection("weaves", embedding_function=embedding_fn)
@@ -73,6 +68,3 @@ if st.button("Weave", type="primary"):
 
         markdown = f"# {url}\n\n{summary}\n\n![[graph.html]]"
         st.download_button("Download Obsidian note", data=markdown, file_name=f"{video_id}.md")
-
-        # Cleanup temp
-        shutil.rmtree(temp_dir)
